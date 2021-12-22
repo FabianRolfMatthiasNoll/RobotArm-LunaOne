@@ -5,7 +5,7 @@
 //  Purpous: The "Operating System" of the Robot Arm "Luna One". It is controlled via an selfmade App. It is the second Version with improved controls.
 //           It is not necessary anymore to control each servo individual. Now you just control the Head and the System calculates the rest.
 //
-//  App: Robot Arm Control Center V2 available at my github repository at: 
+//  App: Robot Arm Control Center V2 available at my github repository at: https://github.com/FabianRolfMatthiasNoll/RobotArm-LunaOne
 //  
 //  Changelog:  13.12.2021  - Added Bluetooth Availability
 //                          - Added Basic Bluetooth Controll
@@ -24,7 +24,7 @@
 #include <Adafruit_PWMServoDriver.h>
 #include <SoftwareSerial.h> 
 
-SoftwareSerial BlueArm(10, 9); // RX | TX 
+SoftwareSerial BlueArm(10, 9); // RX | TX //To keep the standard Serial Port open Software Serial is used
 
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
@@ -41,16 +41,15 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 #define BUTTONUP 7        //Taster 6
 #define BUTTONDOWN 8      //Taster 7
 
-#define PWM_SERVOBASE 0
-#define PWM_SERVOLINK1 1
-#define PWM_SERVOLINK2 2
-#define PWM_SERVOLINK3 3
-#define PWM_SERVOHEAD 4
+#define PWM_SERVOBASE 0   //"Adress" of the Base Servo
+#define PWM_SERVOLINK1 1  //"Adress" of the first Servo
+#define PWM_SERVOLINK2 2  //"Adress" of the second Servo
+#define PWM_SERVOLINK3 3  //"Adress" of the third Servo
+#define PWM_SERVOHEAD 4   //"Adress" of the Head Servo
 
 //===================================================================================================================================================================================
 
-//Defining the standard values for the servo Position. 300 is about the middle value of max and low.
-//The Servos can accept a value between 80 (minimum) and 530 (maximum)
+//Defining the standard values for the servo Position. They are defined in Degrees and will be later converted in their numerical Value for the pwm controller
 
 double SBASE_V = 90;
 double SLINK1_V = 140;
@@ -58,32 +57,31 @@ double SLINK2_V = 90;
 double SLINK3_V = 140;
 double SHEAD_V = 96;
 
-int command = 99;              //Value to save the command received by the bluetooth control
-int active_segment = 1;  
+int command = 0;              //Value to save the command received by the bluetooth control
 
 //======Variables fo Inverse Kinematic=============================================================================================================================================================================
 
 #define PI 3.1415926535897932384626433832795
 
-int f = 67;     //Height of the Robot Base
-int a = 87;     //Lenght of the first segment
-int b = 87;     //Lenght of the second Segment
-int e = 140;    //Lenght of the Robot Head
-double c = 0;      //Lenght of diameter of the triangle
-double h1 = 0;     //Height of the triangle
-double h2 =0;      //Height Difference from h and f
-double e2 = 0;     //Lenght of Head after removing distance
+int f = 67;                   //Height of the Robot Base
+int a = 87;                   //Lenght of the first segment
+int b = 87;                   //Lenght of the second Segment
+int e = 140;                  //Lenght of the Robot Head
+double c = 0;                 //Lenght of diameter of the triangle
+double h1 = 0;                //Height of the triangle
+double h2 =0;                 //Height Difference from h and f
+double e2 = 0;                //Lenght of Head after removing distance
 
-double alpha = 0;  //Degree of the first Servo
-double beta = 81.48;   //Degree of the second Servo
-double gamma = 0;  //Degree of the third Servo
+double alpha = 0;             //Degree of the first Servo
+double beta = 81.48;          //Degree of the second Servo // 81.48 is the startUp Value
+double gamma = 0;             //Degree of the third Servo
 
-double old_beta = 0;
-double difference_beta = 0;
-double difference_beta2 = 0;
+double h = 180.00;            //Height of the Head above Ground // 180 ist the startUp Value
+int d = 135;                  //Distance of the Head from Base Center // 135 ist the startUp Value
 
-int h = 180;    //Height of the Head above Ground 120 - 220
-int d = 135;    //Distance of the Head from Base Center
+double old_beta = 0;          //Later needed to save the old value of beta
+double difference_beta = 0;   //Later needed to move other servos according to the change of beta
+double difference_beta2 = 0;  //Later needed to move other servos according to the change of beta
 
 //===================================================================================================================================================================================
 
@@ -103,18 +101,18 @@ void setup() {
   pwm.begin();
   pwm.setPWMFreq(50);
 
-  calculate_Servos(h,f,e,d,a);
+  calculate_Servos(h,f,e,d,a);    //calculating all necessary Positions at start up with default values
 }
 
 void loop() {
 
-  command = receive_Command();
+  command = receive_Command();    //Function to receive 
   
   execute_command(command);
   
   check_Manual_Control();
   
-  command = 99;
+  command = 0;
 }
 
 void move_Servos(double SBASE_V, double SLINK1_V, double SLINK2_V, double SLINK3_V, double SHEAD_V){
@@ -125,9 +123,6 @@ void move_Servos(double SBASE_V, double SLINK1_V, double SLINK2_V, double SLINK3
   int SLINK3_VT = mapf(SLINK3_V - 68, 0, 180, 70, 530);
   int SHEAD_VT = mapf(SHEAD_V, 0, 180, 70, 530);
 
-  Serial.print("SLINK1_VT After: ");
-  Serial.println(SLINK1_VT);
-  
   pwm.setPWM(PWM_SERVOBASE, 0, SBASE_VT);
   pwm.setPWM(PWM_SERVOLINK1, 0, SLINK1_VT);
   pwm.setPWM(PWM_SERVOLINK2, 0, SLINK2_VT);
@@ -162,14 +157,14 @@ void check_Manual_Control(){
   if(digitalRead(SERVOLINK2) == HIGH){
     if(digitalRead(BUTTONUP) == HIGH){
       if (d < 205){
-        SLINK3_V = SLINK3_V - 1;
-        SLINK1_V = SLINK1_V + 1;
+        SLINK3_V = SLINK3_V - 0.5;
+        SLINK1_V = SLINK1_V + 0.5;
       }
       calculate_Servos(h,f,e,d,a);
     } else if (digitalRead(BUTTONDOWN) == HIGH){
       if (d > 130){
-         SLINK3_V = SLINK3_V + 1;
-         SLINK1_V = SLINK1_V - 1; 
+         SLINK3_V = SLINK3_V + 0.5;
+         SLINK1_V = SLINK1_V - 0.5; 
       }
       calculate_Servos(h,f,e,d,a);
     }
@@ -192,12 +187,12 @@ void check_Manual_Control(){
   if(digitalRead(SERVOHEAD) == HIGH){
     if(digitalRead(BUTTONUP) == HIGH){
       if(SHEAD_V < 120){
-        SHEAD_V = SHEAD_V + 1;
+        SHEAD_V = SHEAD_V + 0.5;
         move_Servos(SBASE_V,SLINK1_V,SLINK2_V,SLINK3_V,SHEAD_V);
        }
     } else if (digitalRead(BUTTONDOWN) == HIGH){
       if(SHEAD_V > 30){
-        SHEAD_V = SHEAD_V - 1;
+        SHEAD_V = SHEAD_V - 0.5;
         move_Servos(SBASE_V,SLINK1_V,SLINK2_V,SLINK3_V,SHEAD_V);
       }
     }
@@ -206,12 +201,12 @@ void check_Manual_Control(){
   if(digitalRead(SERVOLINK3) == HIGH){
     if(digitalRead(BUTTONUP) == HIGH){
       if(SLINK3_V > 0){
-        SLINK3_V = SLINK3_V - 1;
+        SLINK3_V = SLINK3_V - 0.5;
         move_Servos(SBASE_V,SLINK1_V,SLINK2_V,SLINK3_V,SHEAD_V);
        }
     } else if (digitalRead(BUTTONDOWN) == HIGH){
       if(SLINK3_V < 240){
-        SLINK3_V = SLINK3_V + 1;
+        SLINK3_V = SLINK3_V + 0.5;
         move_Servos(SBASE_V,SLINK1_V,SLINK2_V,SLINK3_V,SHEAD_V);
       }
     }
@@ -234,7 +229,7 @@ void calculate_beta(double c, double h1){
   beta = (atan( ((c / 2) / h1) ) / (PI / 180)) * 2;
 }
 
-void calculate_h2(int h, int f){
+void calculate_h2(double h, int f){
   h2 = h - f;
 }
 
@@ -305,7 +300,7 @@ void execute_command(int command){
     while(!(command == 13)){
       command = receive_Command();
       if(SHEAD_V < 120){
-        SHEAD_V = SHEAD_V + 1;
+        SHEAD_V = SHEAD_V + 0.5;
         move_Servos(SBASE_V,SLINK1_V,SLINK2_V,SLINK3_V,SHEAD_V);
       }
     }
@@ -318,7 +313,7 @@ void execute_command(int command){
     while(!(command == 14)){
       command = receive_Command();
       if(SHEAD_V > 30){
-        SHEAD_V = SHEAD_V - 1;
+        SHEAD_V = SHEAD_V - 0.5;
         move_Servos(SBASE_V,SLINK1_V,SLINK2_V,SLINK3_V,SHEAD_V);
       }
     }
@@ -330,7 +325,7 @@ void execute_command(int command){
     while(!(command == 15)){
       command = receive_Command();
       if(SLINK3_V < 240){
-        SLINK3_V = SLINK3_V + 1;
+        SLINK3_V = SLINK3_V + 0.5;
         move_Servos(SBASE_V,SLINK1_V,SLINK2_V,SLINK3_V,SHEAD_V);
       }
     }
@@ -342,7 +337,7 @@ void execute_command(int command){
     while(!(command == 16)){
       command = receive_Command();
       if(SLINK3_V > 0){
-        SLINK3_V = SLINK3_V - 1;
+        SLINK3_V = SLINK3_V - 0.5;
         move_Servos(SBASE_V,SLINK1_V,SLINK2_V,SLINK3_V,SHEAD_V);
       }
     }
@@ -354,7 +349,7 @@ void execute_command(int command){
     while(!(command == 17)){
       command = receive_Command();
       if (h < 220){
-        h = h + 2;
+        h = h + 0.5;
       }
       calculate_Servos(h,f,e,d,a);
     }
@@ -366,7 +361,7 @@ void execute_command(int command){
     while(!(command == 18)){
       command = receive_Command();
       if (h > 130){
-         h = h - 2; 
+         h = h - 0.5; 
       }
       calculate_Servos(h,f,e,d,a);
     }
@@ -400,6 +395,16 @@ void execute_command(int command){
 
   //=======================================================================================================================================
 
+  if(command == 91){
+    SBASE_V = 90;
+    SLINK1_V = 140;
+    SLINK2_V = 90;
+    SLINK3_V = 140;
+    SHEAD_V = 96;
+    beta = 81.48;
+    h = 180.00;
+    calculate_Servos(h,f,e,d,a);
+  }
 }
 
 double mapf(double x, double in_min, double in_max, double out_min, double out_max){
