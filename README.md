@@ -25,3 +25,12 @@ You need to set "Supports everywhere" for this to achieve.
 
 All Parts can be printed up to 0.2mm. More than that is not tested, especially the
 "Greifer" and "Zahnrad" parts.
+
+## How to use the App
+
+After installing the App you first have to pair your phone with the bluetooth module.
+You can do this over your phones bluetooth settings. 
+
+> If you are using a new HC-05 Module it will be named that. If you used a configured one the name could differ
+> The pairing Password will be 1234 if it wasnt changed
+
