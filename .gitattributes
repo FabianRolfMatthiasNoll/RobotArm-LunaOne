@@ -1,0 +1,16 @@
+*.SLDPRT linguist-vendored
+*.SLDASM linguist-vendored
+*.STL linguist-vendored
+*.T3001 linguist-vendored
+*.Apr linguist-vendored
+*.Bot linguist-vendored
+*.Drill linguist-vendored
+*.Info linguist-vendored
+*.Outline linguist-vendored
+*.StopTop linguist-vendored
+*.Tool linguist-vendored
+*.Whl linguist-vendored
+*.zip linguist-vendored
+*.BK1 linguist-vendored
+*.BK2 linguist-vendored
+*.T3001A linguist-vendored
